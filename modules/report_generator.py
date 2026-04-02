@@ -1,14 +1,14 @@
 """
 Module 4: Report Generator
-- All findings compile ചെയ്ത് professional report ഉണ്ടാക്കുന്നു
-- SOC-style incident report format
-- HTML + TXT output
+- Compiles all findings into a professional SOC-style report
+- Outputs both HTML and TXT formats
 """
 
 import os
 from datetime import datetime
 from utils.banner import print_success, print_info
 
+# Color mapping for HTML severity levels
 SEVERITY_COLOR = {
     "CRITICAL": "#dc2626",
     "HIGH":     "#ea580c",
@@ -17,6 +17,7 @@ SEVERITY_COLOR = {
     "INFO":     "#2563eb"
 }
 
+# Emoji mapping for status icons
 STATUS_EMOJI = {
     "PASS": "✅",
     "FAIL": "❌",
@@ -24,7 +25,16 @@ STATUS_EMOJI = {
     "INFO": "ℹ️"
 }
 
+def _get_risk_level(score):
+    """Calculates risk level based on risk score"""
+    if score >= 60: return "CRITICAL"
+    if score >= 40: return "HIGH"
+    if score >= 20: return "MEDIUM"
+    if score >= 10: return "LOW"
+    return "INFORMATIONAL"
+
 def generate_report(ss7_findings, sms_findings, sim_findings, risk_score, target_url):
+    """Main function to generate both reports"""
     os.makedirs("reports", exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -41,7 +51,7 @@ def generate_report(ss7_findings, sms_findings, sim_findings, risk_score, target
     return html_path, txt_path
 
 
-# ── TXT Report ─────────────────────────────────────────────────────
+# ── TXT Report Generation ───────────────────────────────────────────
 def _generate_txt_report(path, ss7_findings, sms_findings,
                          sim_findings, risk_score, target_url, ts):
     risk_level = _get_risk_level(risk_score)
@@ -103,11 +113,11 @@ def _generate_txt_report(path, ss7_findings, sms_findings,
         f.write('\n'.join(lines))
 
 
-# ── HTML Report ────────────────────────────────────────────────────
+# ── HTML Report Generation ──────────────────────────────────────────
 def _generate_html_report(path, ss7_findings, sms_findings,
                            sim_findings, risk_score, target_url, ts):
     risk_level = _get_risk_level(risk_score)
-    risk_color = "#dc2626" if risk_score >= 30 else "#ea580c" if risk_score >= 20 else "#ca8a04"
+    risk_color = "#dc2626" if risk_score >= 60 else "#ea580c" if risk_score >= 40 else "#ca8a04"
 
     # Build sections
     ss7_rows = ""
@@ -179,10 +189,6 @@ def _generate_html_report(path, ss7_findings, sms_findings,
   tr:hover {{ background: #0f172a; }}
   .badge {{ display: inline-block; padding: 3px 10px; border-radius: 20px;
             font-size: 0.75rem; font-weight: bold; color: white; }}
-  .rec-list {{ padding: 20px 24px; }}
-  .rec-list li {{ padding: 8px 0; border-bottom: 1px solid #334155;
-                  color: #cbd5e1; list-style: none; }}
-  .rec-list li::before {{ content: "→ "; color: #38bdf8; font-weight: bold; }}
   .footer {{ text-align: center; padding: 20px; color: #475569; font-size: 0.85rem; }}
 </style>
 </head>
@@ -209,58 +215,31 @@ def _generate_html_report(path, ss7_findings, sms_findings,
     </div>
   </div>
 </div>
-
 <div class="container">
-
   <div class="section">
-    <div class="section-header"><h2>1. SS7 Protocol Vulnerabilities</h2></div>
+    <div class="section-header"><h2>MODULE 1: SS7 VULNERABILITY ASSESSMENT</h2></div>
     <table>
-      <tr><th>Severity</th><th>Vulnerability</th><th>Impact</th><th>Mitigation</th></tr>
-      {ss7_rows}
+      <thead><tr><th>Severity</th><th>Vulnerability</th><th>Impact</th><th>Mitigation</th></tr></thead>
+      <tbody>{ss7_rows}</tbody>
     </table>
   </div>
-
   <div class="section">
-    <div class="section-header"><h2>2. SMS 2FA Security Checks</h2></div>
+    <div class="section-header"><h2>MODULE 2: SMS 2FA SECURITY CHECKS</h2></div>
     <table>
-      <tr><th>Status</th><th>Severity</th><th>Check</th><th>Details</th></tr>
-      {sms_rows}
+      <thead><tr><th></th><th>Severity</th><th>Test</th><th>Description</th></tr></thead>
+      <tbody>{sms_rows}</tbody>
     </table>
   </div>
-
   <div class="section">
-    <div class="section-header"><h2>3. SIM Swap Risk Assessment</h2></div>
+    <div class="section-header"><h2>MODULE 3: SIM SWAP RISK ASSESSMENT</h2></div>
     <table>
-      <tr><th>Status</th><th>Severity</th><th>Check</th><th>Details</th></tr>
-      {sim_rows}
+      <thead><tr><th></th><th>Severity</th><th>Test</th><th>Description</th></tr></thead>
+      <tbody>{sim_rows}</tbody>
     </table>
   </div>
-
-  <div class="section">
-    <div class="section-header"><h2>4. Recommendations</h2></div>
-    <ul class="rec-list">
-      <li>Deploy SS7 Firewall — filter ATI and updateLocation from external networks</li>
-      <li>Implement SMS Home Routing to prevent SMS hijacking via HLR manipulation</li>
-      <li>Replace SMS 2FA with TOTP (Google Authenticator) or FIDO2 hardware keys</li>
-      <li>Implement SIM swap detection and immediate user notification system</li>
-      <li>Enforce session invalidation when phone number is changed</li>
-      <li>Monitor SS7 traffic for anomalous MAP/CAP requests (SOC use case)</li>
-      <li>Integrate carrier-level SIM swap detection API for high-risk actions</li>
-      <li>Follow NIST SP 800-63B — deprecate SMS OTP as sole authentication factor</li>
-    </ul>
-  </div>
-
 </div>
-<div class="footer">Generated by SS7Shield v1.0 — SOC Portfolio Project</div>
+<div class="footer">Generated by SS7Shield — SOC Analyst Portfolio Project</div>
 </body>
 </html>"""
-
-    with open(path, 'w') as f:
+    with open(path, 'w', encoding='utf-8') as f:
         f.write(html)
-
-
-def _get_risk_level(score):
-    if score >= 30: return "CRITICAL RISK"
-    if score >= 20: return "HIGH RISK"
-    if score >= 10: return "MEDIUM RISK"
-    return "LOW RISK"

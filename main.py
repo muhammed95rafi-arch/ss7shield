@@ -2,11 +2,6 @@
 """
 SS7Shield — SS7 Vulnerability Assessment & SMS Security Testing Tool
 SOC Portfolio Project
-
-Usage:
-  python main.py --target https://example.com
-  python main.py --target https://example.com --phone +1234567890
-  python main.py --demo
 """
 
 import argparse
@@ -24,6 +19,10 @@ from modules.sms_2fa_tester import SMS2FATester
 from modules.sim_swap_detector import SIMSwapDetector
 from modules.report_generator import generate_report
 
+# --- Added Function to save results ---
+def save_scan_result(result_text):
+    with open("scan_results.txt", "a") as file:
+        file.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] " + result_text + "\n")
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -43,9 +42,7 @@ def parse_args():
                         help='Skip SIM swap checks')
     return parser.parse_args()
 
-
 def confirm_authorization(target):
-    """Ethical check — ensure user has permission"""
     print_warning("AUTHORIZATION CHECK")
     print_warning(f"Target: {target}")
     print_warning("Only test systems you have explicit permission to test.")
@@ -56,9 +53,8 @@ def confirm_authorization(target):
     print_success("Authorization confirmed. Proceeding...\n")
     time.sleep(1)
 
-
 def run_full_assessment(args, logger):
-    target = args.target or "https://demo.example.com"
+    target = args.target or "https://example.com"
     phone  = args.phone
 
     ss7_findings  = []
@@ -66,44 +62,37 @@ def run_full_assessment(args, logger):
     sim_findings  = []
     risk_score    = 0
 
-    # ── Module 1: SS7 Vulnerability Scan ───────────────────────────
+    save_scan_result(f"Starting assessment for target: {target}")
+
+    # -- Module 1: SS7 Scan --
     if not args.skip_ss7:
         print_section("MODULE 1: SS7 VULNERABILITY ASSESSMENT")
         ss7_findings, risk_score = run_scanner()
+        save_scan_result(f"Module 1 Complete: Found {len(ss7_findings)} SS7 vulnerabilities. Risk Score: {risk_score}")
 
-        for f in ss7_findings:
-            log_finding(logger, f['details']['severity'],
-                        f['details']['name'], f['details']['impact'])
-
-        print_info(f"\nSS7 Vulnerabilities Found : {len(ss7_findings)}")
-        print_info(f"Risk Score                : {risk_score}")
-        print_info(f"Risk Level                : {get_risk_level(risk_score)}")
-
-    # ── Module 2: SMS 2FA Security Test ────────────────────────────
+    # -- Module 2: SMS Test --
     if not args.skip_sms:
         print_section("MODULE 2: SMS 2FA SECURITY TESTING")
         tester = SMS2FATester(target, phone)
         sms_findings = tester.run_all_checks()
+        save_scan_result(f"Module 2 Complete: SMS 2FA checks finished.")
 
-        critical = sum(1 for f in sms_findings if f['severity'] == 'CRITICAL')
-        high     = sum(1 for f in sms_findings if f['severity'] == 'HIGH')
-        print_info(f"\nSMS 2FA Issues — Critical: {critical} | High: {high}")
-
-    # ── Module 3: SIM Swap Detection ───────────────────────────────
+    # -- Module 3: SIM Swap --
     if not args.skip_sim:
         print_section("MODULE 3: SIM SWAP RISK ASSESSMENT")
         detector = SIMSwapDetector(target)
         sim_findings = detector.run_checks()
+        save_scan_result(f"Module 3 Complete: SIM swap risk assessment finished.")
 
-    # ── Module 4: Report Generation ────────────────────────────────
+    # -- Module 4: Report Generation --
     print_section("MODULE 4: GENERATING REPORT")
     html_path, txt_path = generate_report(
         ss7_findings, sms_findings, sim_findings,
         risk_score, target
     )
+    save_scan_result(f"Reports generated: {txt_path}")
 
     return html_path, txt_path, risk_score
-
 
 def print_summary(risk_score, html_path, txt_path):
     print_section("ASSESSMENT COMPLETE")
@@ -112,13 +101,6 @@ def print_summary(risk_score, html_path, txt_path):
     print_info(f"Risk Score         : {risk_score}/100")
     print_success(f"HTML Report        : {html_path}")
     print_success(f"TXT  Report        : {txt_path}")
-    print("\n")
-    print_warning("Key Takeaways for SOC:")
-    print_info("• SS7 attacks require network-level detection, not just app-layer")
-    print_info("• SMS 2FA is insufficient — recommend TOTP/FIDO2")
-    print_info("• SIM swap attacks bypass app-level security entirely")
-    print_info("• Monitor for anomalous MAP/CAP messages in telecom traffic")
-
 
 def main():
     print_banner()
@@ -127,10 +109,9 @@ def main():
 
     if args.demo:
         print_info("Running in DEMO mode — no real network requests\n")
-        args.target = "https://demo-bank.example.com"
+        args.target = "https://example.com"
     elif not args.target:
         print_error("Please provide a target: --target https://example.com")
-        print_info("Or run demo mode: --demo")
         sys.exit(1)
     else:
         confirm_authorization(args.target)
@@ -143,9 +124,7 @@ def main():
         sys.exit(0)
     except Exception as e:
         print_error(f"Unexpected error: {str(e)}")
-        logger.exception("Fatal error during assessment")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()
